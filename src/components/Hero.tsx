@@ -12,6 +12,8 @@ import {
   RotateCcw,
   Sparkle
 } from 'lucide-react';
+import ApiKeyModal from './ApiKeyModal';
+import { hasApiKey } from '../services/geminiService';
 
 interface VenueMatch {
   id: string;
@@ -69,7 +71,11 @@ const SAMPLE_VENUES: VenueMatch[] = [
   }
 ];
 
-export default function Hero() {
+interface HeroProps {
+  onStartChat?: (query: string) => void;
+}
+
+export default function Hero({ onStartChat }: HeroProps) {
   const [prompt, setPrompt] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchStep, setSearchStep] = useState('');
@@ -77,6 +83,8 @@ export default function Hero() {
   const [savedVenues, setSavedVenues] = useState<string[]>([]);
   const [reservedVenueId, setReservedVenueId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'verified' | 'instant-hold'>('all');
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+  const [keyActive, setKeyActive] = useState(hasApiKey());
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -90,7 +98,12 @@ export default function Hero() {
 
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const query = prompt.trim() || 'Luxury evening banquet hall for 250 guests with ballroom and outdoor lawn';
+    const query = prompt.trim() || 'Luxury evening banquet hall for 250 wedding guests with ballroom, lawn, and catering';
+
+    if (onStartChat) {
+      onStartChat(query);
+      return;
+    }
 
     setIsSearching(true);
     setSearchStep('Analyzing event specifications & aesthetic vibe...');
@@ -130,11 +143,21 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-screen w-full flex flex-col justify-between overflow-x-hidden">
-      {/* Background Graphic Image supplied by user */}
+      {/* Background Graphic Image for Desktop & Tablets */}
       <div
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        className="absolute inset-0 z-0 hidden sm:block bg-cover bg-center bg-no-repeat pointer-events-none"
         style={{
           backgroundImage: `url('https://res.cloudinary.com/dkev7ein3/image/upload/v1790440624/Hero_mccrdk.png')`,
+          backgroundColor: '#1b1b36',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Background Graphic Image for Mobile (940x1672) */}
+      <div
+        className="absolute inset-0 z-0 block sm:hidden bg-cover bg-center bg-no-repeat pointer-events-none"
+        style={{
+          backgroundImage: `url('https://res.cloudinary.com/dkev7ein3/image/upload/v1790493781/Hero-Mobile_ewjxhr.png')`,
           backgroundColor: '#1b1b36',
         }}
         aria-hidden="true"
@@ -147,8 +170,7 @@ export default function Hero() {
       />
 
       {/* Top Bar / Header:
-          Only clean brand identity on top-left.
-          Per instruction: NO top 4 nav buttons, NO "Try for free" button, and NO top-right banquet badge!
+          Only clean brand identity on top-left, and API configuration trigger on top-right
       */}
       <header className="relative z-20 w-full px-5 sm:px-8 md:px-12 py-6 flex items-center justify-between">
         {/* Brand Logo matching the dribbble inspiration's 3-petal mark */}
@@ -172,6 +194,21 @@ export default function Hero() {
             </span>
           </div>
         </div>
+
+        {/* API Key settings trigger */}
+        <button
+          type="button"
+          onClick={() => setIsKeyModalOpen(true)}
+          className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-normal transition-colors border border-white/20 shadow-xs"
+          title="Configure Gemini API Key"
+        >
+          <Sparkle className="w-3.5 h-3.5 text-[#dbc6f9]" />
+          <span className="hidden sm:inline">Avela AI Setup</span>
+          <span
+            className={`w-2 h-2 rounded-full ${keyActive ? 'bg-emerald-400' : 'bg-amber-400'}`}
+            title={keyActive ? 'Gemini API Key active' : 'Using Local Heuristic Engine'}
+          />
+        </button>
       </header>
 
       {/* Main Hero Body */}
@@ -190,14 +227,14 @@ export default function Hero() {
           Let your AI assistant manage the busywork, organize your day, and keep everything on track.
         </p>
 
-        {/* AI INPUT BOX - White Light Theme (Pristine, Elegant, No AI-slop dark container) */}
+        {/* AI INPUT BOX - Ethereal Frosted Glass */}
         <div className="w-full max-w-2xl text-left">
-          <div className="relative rounded-2xl sm:rounded-3xl bg-white/95 backdrop-blur-2xl border border-white p-3.5 sm:p-5 shadow-[0_24px_60px_-15px_rgba(20,18,50,0.35),0_0_0_1px_rgba(255,255,255,0.9)_inset] transition-all duration-300 focus-within:shadow-[0_28px_70px_-15px_rgba(20,18,50,0.45),0_0_0_2px_rgba(165,180,252,0.6)]">
+          <div className="relative rounded-2xl sm:rounded-3xl frosted-glass-input p-4 sm:p-5 transition-all duration-300">
             
             {/* Prompt Textarea */}
             <div className="relative flex items-start gap-2.5 sm:gap-3">
-              <div className="pt-1.5 text-indigo-500 shrink-0">
-                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
+              <div className="pt-1.5 text-indigo-600 shrink-0">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -211,9 +248,9 @@ export default function Hero() {
                       handleSearch();
                     }
                   }}
-                  placeholder="Ask anything... e.g. 'Find a luxury banquet hall for 250 wedding guests in November with ballroom, open lawn, and vegetarian catering under $15k'"
+                  placeholder="e.g. 'Wedding in Ahmedabad on 20 December evening for 450 guests, Jain dinner, decoration required, 10 rooms, budget 6,00,000'"
                   rows={2}
-                  className="w-full bg-transparent text-slate-800 placeholder-slate-400 text-sm sm:text-base font-normal resize-none focus:outline-none p-0 leading-relaxed min-h-[64px] selection:bg-indigo-100"
+                  className="w-full bg-transparent text-[#141029] placeholder-[#574e76]/70 text-sm sm:text-base font-normal resize-none focus:outline-none p-0 leading-relaxed min-h-[64px] selection:bg-indigo-200/50"
                 />
               </div>
 
@@ -222,7 +259,7 @@ export default function Hero() {
                 <button
                   type="button"
                   onClick={() => setPrompt('')}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors"
+                  className="text-slate-500 hover:text-slate-800 p-1 rounded-md transition-colors"
                   aria-label="Clear input"
                 >
                   <X className="w-4 h-4" />
@@ -231,14 +268,14 @@ export default function Hero() {
             </div>
 
             {/* Bottom Controls / Toolbar */}
-            <div className="flex items-center justify-between pt-3 px-1 gap-2 border-t border-slate-100 mt-2">
-              <span className="text-xs text-slate-400 font-normal flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="flex items-center justify-between pt-3 px-1 gap-2 border-t border-black/5 mt-2">
+              <span className="text-xs text-[#4c446c] font-normal flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                 <span>AI Banquet Concierge</span>
               </span>
 
               <div className="flex items-center gap-2.5">
-                <span className="hidden sm:inline text-xs text-slate-400 font-normal">
+                <span className="hidden sm:inline text-xs text-[#5e5580]/80 font-normal">
                   Press ↵ Enter
                 </span>
 
@@ -246,23 +283,85 @@ export default function Hero() {
                   type="button"
                   onClick={() => handleSearch()}
                   disabled={isSearching}
-                  className="flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-normal text-xs sm:text-sm active:scale-95 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-[#1e153b] hover:bg-[#2b1f52] active:scale-95 text-white font-normal text-xs sm:text-sm transition-all shadow-[0_4px_16px_rgba(30,21,59,0.25)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border border-white/10"
                 >
                   {isSearching ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Searching...</span>
+                      <span>Synthesizing...</span>
                     </>
                   ) : (
                     <>
-                      <span>Find Banquets</span>
-                      <ArrowUp className="w-3.5 h-3.5 rotate-45" />
+                      <span className="text-white">Analyze with Avela</span>
+                      <ArrowUp className="w-3.5 h-3.5 rotate-45 text-[#DBC6F9]" />
                     </>
                   )}
                 </button>
               </div>
             </div>
 
+          </div>
+
+          {/* Quick Scenario Chips for Mandatory Test Cases */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 justify-center text-xs">
+            <span className="text-white/60 text-[11px] font-normal w-full text-center mb-1">
+              Run Mandatory Test Cases:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const sample = 'I need a wedding for 450 people with Jain food and 10 rooms.';
+                setPrompt(sample);
+                if (onStartChat) onStartChat(sample);
+              }}
+              className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] transition-all backdrop-blur-md border border-white/20 cursor-pointer"
+            >
+              TC1: 450 Pax, Jain, 10 Rooms
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const sample = 'We are planning a corporate event for 150 people. Vegetarian food. No rooms required.';
+                setPrompt(sample);
+                if (onStartChat) onStartChat(sample);
+              }}
+              className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] transition-all backdrop-blur-md border border-white/20 cursor-pointer"
+            >
+              TC2: Corporate 150, 0 Rooms
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const sample = 'I need a wedding for 700 guests and Jain food.';
+                setPrompt(sample);
+                if (onStartChat) onStartChat(sample);
+              }}
+              className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] transition-all backdrop-blur-md border border-white/20 cursor-pointer"
+            >
+              TC3: 700 Pax, Jain Food
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const sample = 'I need a wedding hall.';
+                setPrompt(sample);
+                if (onStartChat) onStartChat(sample);
+              }}
+              className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] transition-all backdrop-blur-md border border-white/20 cursor-pointer"
+            >
+              TC4: Wedding Hall (Missing Info)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const sample = 'I need a wedding for 450 guests, Jain food, 10 rooms, and my budget is 4 lakh.';
+                setPrompt(sample);
+                if (onStartChat) onStartChat(sample);
+              }}
+              className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] transition-all backdrop-blur-md border border-white/20 cursor-pointer"
+            >
+              TC5: 450 Pax, Jain, Budget ₹4L
+            </button>
           </div>
         </div>
 
@@ -351,7 +450,7 @@ export default function Hero() {
                 return (
                   <div
                     key={venue.id}
-                    className="group flex flex-col justify-between rounded-2xl bg-white/95 backdrop-blur-xl border border-white/80 p-5 shadow-xl hover:shadow-2xl transition-all duration-300"
+                    className="group flex flex-col justify-between rounded-2xl frosted-glass-input p-5 shadow-xl hover:shadow-2xl transition-all duration-300"
                   >
                     <div>
                       {/* Image Preview with match badge */}
@@ -441,7 +540,13 @@ export default function Hero() {
                     <div className="mt-5 pt-3 border-t border-slate-100 flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => handleInstantHold(venue.id)}
+                        onClick={() => {
+                          if (onStartChat) {
+                            onStartChat(`I would like to place a 24-hour hold on "${venue.name}" for our celebration.`);
+                          } else {
+                            handleInstantHold(venue.id);
+                          }
+                        }}
                         className="flex-1 py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-normal text-center transition-colors shadow-sm"
                       >
                         {reservedVenueId === venue.id ? 'Holding Date...' : 'Hold Date with AI'}
@@ -449,8 +554,12 @@ export default function Hero() {
                       <button
                         type="button"
                         onClick={() => {
-                          setPrompt(`Get full banquet proposal and floor plan breakdown for ${venue.name}`);
-                          window.scrollTo({ top: 180, behavior: 'smooth' });
+                          if (onStartChat) {
+                            onStartChat(`Can you give me the full catering package breakdown and floor plan for "${venue.name}"?`);
+                          } else {
+                            setPrompt(`Get full banquet proposal and floor plan breakdown for ${venue.name}`);
+                            window.scrollTo({ top: 180, behavior: 'smooth' });
+                          }
                         }}
                         className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
                         title="Ask AI Concierge for floor plan and catering details"
@@ -488,6 +597,13 @@ export default function Hero() {
       <footer className="relative z-10 w-full px-6 py-4 text-center text-xs text-white/50 font-normal">
         <span>© {new Date().getFullYear()} Avela Banquet AI · Tailored Event & Banquet Concierge</span>
       </footer>
+
+      {/* API Key Modal */}
+      <ApiKeyModal
+        isOpen={isKeyModalOpen}
+        onClose={() => setIsKeyModalOpen(false)}
+        onKeyUpdated={() => setKeyActive(hasApiKey())}
+      />
     </section>
   );
 }

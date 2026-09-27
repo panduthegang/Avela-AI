@@ -58,6 +58,27 @@
   box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.4);
 }
 
+/* Ethereal frosted glass that harmonizes with floral background */
+.frosted-glass-input {
+  background: rgba(255, 255, 255, 0.48);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 
+    0 24px 50px -15px rgba(28, 20, 60, 0.22),
+    0 1px 2px rgba(255, 255, 255, 0.85) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+}
+
+.frosted-glass-input:focus-within {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 
+    0 28px 60px -12px rgba(32, 22, 70, 0.28),
+    0 0 0 3px rgba(219, 198, 249, 0.5),
+    0 1px 2px rgba(255, 255, 255, 0.9) inset;
+}
+
 .ambient-glow {
   box-shadow: 0 0 60px 10px rgba(186, 170, 255, 0.25);
 }
