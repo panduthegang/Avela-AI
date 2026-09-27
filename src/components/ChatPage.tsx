@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   ArrowUp,
-  Key,
   Check,
   CheckCheck,
   Sparkles
@@ -14,13 +13,13 @@ import {
 import {
   analyzeInquiryWithGemini,
   answerFollowUpWithGemini,
-  hasApiKey
+  extractUpdatesFromText,
+  applyUpdatesToRequirements
 } from '../services/geminiService';
 import {
   analyzeAllPackages
 } from '../services/quotationEngine';
 import EventAnalysisCard from './EventAnalysisCard';
-import ApiKeyModal from './ApiKeyModal';
 
 export interface ChatMessage {
   id: string;
@@ -45,8 +44,6 @@ export default function ChatPage({ initialQuery, onBack }: ChatPageProps) {
   const [isTyping, setIsTyping] = useState(false);
   const [heldVenue, setHeldVenue] = useState<string | null>(null);
   const [currentRequirements, setCurrentRequirements] = useState<EventRequirements | null>(null);
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  const [keyActive, setKeyActive] = useState(hasApiKey());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -88,10 +85,10 @@ export default function ChatPage({ initialQuery, onBack }: ChatPageProps) {
 
         setCurrentRequirements(aiResult.requirements);
 
-        const asstMsg: ChatMessage = {
-          id: `msg-asst-${Date.now()}`,
+        const asstProfileMsg: ChatMessage = {
+          id: `msg-asst-profile-${Date.now()}`,
           sender: 'assistant',
-          text: aiResult.conciergeResponse,
+          text: aiResult.acknowledgmentMessage,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           analysisData: {
             requirements: aiResult.requirements,
@@ -99,7 +96,17 @@ export default function ChatPage({ initialQuery, onBack }: ChatPageProps) {
           }
         };
 
-        setMessages((prev) => [...prev, asstMsg]);
+        if (aiResult.followUpQuestionsMessage) {
+          const asstQuestionsMsg: ChatMessage = {
+            id: `msg-asst-questions-${Date.now() + 1}`,
+            sender: 'assistant',
+            text: aiResult.followUpQuestionsMessage,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages((prev) => [...prev, asstProfileMsg, asstQuestionsMsg]);
+        } else {
+          setMessages((prev) => [...prev, asstProfileMsg]);
+        }
       } catch (err) {
         console.error('Analysis error:', err);
         const errorMsg: ChatMessage = {
@@ -141,18 +148,19 @@ export default function ChatPage({ initialQuery, onBack }: ChatPageProps) {
     setIsTyping(true);
 
     try {
-      const activeReq = currentRequirements || {
+      const activeReq: EventRequirements = currentRequirements || {
         eventType: 'Wedding',
-        city: 'Ahmedabad',
-        date: '20 December',
-        time: 'Evening',
-        guestCount: 450,
-        foodType: 'Jain',
-        meal: 'Dinner',
-        decorationRequired: true,
-        roomsRequired: 10,
-        budget: 600000,
-        missingInformation: []
+        city: 'Not Provided',
+        date: 'Not Provided',
+        time: 'Not Provided',
+        guestCount: null,
+        foodType: 'Not Provided',
+        meal: 'Not Provided',
+        decorationRequired: null,
+        roomsRequired: null,
+        budget: null,
+        missingInformation: [],
+        conflictingInformation: []
       };
 
       const history = updatedThread.map((m) => ({
@@ -160,136 +168,69 @@ export default function ChatPage({ initialQuery, onBack }: ChatPageProps) {
         text: m.text
       }));
 
+      // 1. Call Gemini follow-up (which also uses extractUpdatesFromText internally)
       const replyData = await answerFollowUpWithGemini(history, activeReq);
 
-      // Check if any requirements got updated
-      let newReq = { ...activeReq };
-      let updated = false;
+      // 2. Also extract direct updates from current text as immediate guarantee
+      const directUpdates = extractUpdatesFromText(text);
 
-      if (replyData.updatedRequirements) {
-        Object.entries(replyData.updatedRequirements).forEach(([key, val]) => {
-          if (val !== undefined && val !== null && val !== '') {
-            (newReq as Record<string, unknown>)[key] = val;
-            updated = true;
-          }
-        });
-      }
+      const combinedUpdates = {
+        ...(replyData.updatedRequirements || {}),
+        ...directUpdates
+      };
 
-      // Heuristic extraction for quick answer clicks & text inputs
-      const lower = text.toLowerCase();
-
-      // City update
-      const cities = ['Ahmedabad', 'Mumbai', 'Delhi', 'Bangalore', 'Jaipur', 'Udaipur', 'Surat', 'Pune', 'Goa', 'Hyderabad', 'Chennai', 'Kolkata'];
-      for (const c of cities) {
-        if (lower.includes(c.toLowerCase())) {
-          newReq.city = c;
-          newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('city') && !m.toLowerCase().includes('location'));
-          updated = true;
-          break;
-        }
-      }
-
-      // Date update
-      const dateMatch = text.match(/(\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{4})?)/i) ||
-        text.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/);
-      if (dateMatch) {
-        newReq.date = dateMatch[1];
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('date') && !m.toLowerCase().includes('year'));
-        updated = true;
-      }
-
-      // Budget update (e.g. 6 lakhs, 4 lakh, 600000, ₹4,00,000)
-      const lakhMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac|l)\b/i);
-      if (lakhMatch) {
-        newReq.budget = Math.round(parseFloat(lakhMatch[1]) * 100000);
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('budget'));
-        updated = true;
-      } else {
-        const numMatch = text.match(/(?:budget|cost|price|package|around|under)?[\s:]*(?:₹|inr|rs\.?)?\s*([\d,]+)/i);
-        if (numMatch) {
-          const bVal = parseInt(numMatch[1].replace(/,/g, ''), 10);
-          if (bVal > 10000) {
-            newReq.budget = bVal;
-            newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('budget'));
-            updated = true;
-          }
-        }
-      }
-
-      // Room update
-      if (lower.includes('no room') || lower.includes('0 room') || lower.includes('without room')) {
-        newReq.roomsRequired = 0;
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('room'));
-        updated = true;
-      } else {
-        const rMatch = text.match(/(\d+)\s*rooms?/i);
-        if (rMatch) {
-          newReq.roomsRequired = parseInt(rMatch[1], 10);
-          newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('room'));
-          updated = true;
-        }
-      }
-
-      // Food update
-      if (lower.includes('jain')) {
-        newReq.foodType = 'Jain';
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('food') && !m.toLowerCase().includes('dietary'));
-        updated = true;
-      } else if (lower.includes('veg') || lower.includes('vegetarian')) {
-        newReq.foodType = 'Vegetarian';
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('food') && !m.toLowerCase().includes('dietary'));
-        updated = true;
-      }
-
-      // Guest Count update
-      const gMatch = text.match(/(\d+)\s*(?:guests?|people|pax|attendees)/i);
-      if (gMatch) {
-        newReq.guestCount = parseInt(gMatch[1], 10);
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('guest'));
-        updated = true;
-      }
-
-      // Meal & Time update
-      if (lower.includes('dinner')) {
-        newReq.meal = 'Dinner';
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('meal'));
-        updated = true;
-      }
-      if (lower.includes('lunch')) {
-        newReq.meal = 'Lunch';
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('meal'));
-        updated = true;
-      }
-      if (lower.includes('evening')) {
-        newReq.time = 'Evening';
-        newReq.missingInformation = newReq.missingInformation.filter((m) => !m.toLowerCase().includes('time'));
-        updated = true;
-      }
+      const { updatedRequirements: newReq, changed } = applyUpdatesToRequirements(activeReq, combinedUpdates);
 
       let analysisPayload: ChatMessage['analysisData'] | undefined = undefined;
 
-      if (updated) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'read' } : m))
+      );
+
+      if (changed) {
         const newAnalysis = analyzeAllPackages(newReq);
         setCurrentRequirements(newReq);
         analysisPayload = {
           requirements: newReq,
           eligibilityList: newAnalysis.all
         };
+
+        const updateAckMsg: ChatMessage = {
+          id: `bot-upd-${Date.now()}`,
+          sender: 'assistant',
+          text: newReq.missingInformation.length === 0
+            ? 'All event specifications are verified! Package matching and itemized quotation unlocked below:'
+            : 'I have updated your event profile with your new specifications:',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          analysisData: analysisPayload
+        };
+
+        let followUpQuestionText = '';
+        if (newReq.missingInformation.length > 0) {
+          followUpQuestionText = `To help me finalize your banquet recommendations and quotation, could you please also provide:\n` +
+            newReq.missingInformation.map((item, idx) => `\n${idx + 1}. ${item}`).join('') +
+            `\n\nPlease let me know your preferences.`;
+        } else {
+          followUpQuestionText = 'Would you like me to place a complimentary 24-hour hold on an eligible package, or arrange a private venue walk-through?';
+        }
+
+        const questionMsg: ChatMessage = {
+          id: `bot-q-${Date.now() + 1}`,
+          sender: 'assistant',
+          text: followUpQuestionText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setMessages((prev) => [...prev, updateAckMsg, questionMsg]);
+      } else {
+        const botReply: ChatMessage = {
+          id: `bot-${Date.now()}`,
+          sender: 'assistant',
+          text: replyData.text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages((prev) => [...prev, botReply]);
       }
-
-      setMessages((prev) =>
-        prev.map((m) => (m.id === newMsg.id ? { ...m, status: 'read' } : m))
-      );
-
-      const botReply: ChatMessage = {
-        id: `bot-${Date.now()}`,
-        sender: 'assistant',
-        text: replyData.text,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        analysisData: analysisPayload
-      };
-
-      setMessages((prev) => [...prev, botReply]);
     } catch (err) {
       console.error('Follow-up error:', err);
       const fallbackReply: ChatMessage = {
@@ -406,21 +347,6 @@ export default function ChatPage({ initialQuery, onBack }: ChatPageProps) {
 
         {/* Right Header Actions */}
         <div className="flex items-center gap-2">
-          {/* API Key Status / Config trigger */}
-          <button
-            type="button"
-            onClick={() => setIsKeyModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-normal transition-colors border border-white/20"
-            title="Configure Gemini API Key"
-          >
-            <Key className="w-3.5 h-3.5 text-[#dbc6f9]" />
-            <span className="hidden sm:inline">API Key</span>
-            <span
-              className={`w-2 h-2 rounded-full ${keyActive ? 'bg-emerald-400' : 'bg-amber-400'}`}
-              title={keyActive ? 'Gemini API Key active' : 'Using Local Heuristic Engine'}
-            />
-          </button>
-
           {/* Exit Chat button */}
           <button
             type="button"
@@ -567,13 +493,6 @@ export default function ChatPage({ initialQuery, onBack }: ChatPageProps) {
           </button>
         </form>
       </footer>
-
-      {/* API Key Modal */}
-      <ApiKeyModal
-        isOpen={isKeyModalOpen}
-        onClose={() => setIsKeyModalOpen(false)}
-        onKeyUpdated={() => setKeyActive(hasApiKey())}
-      />
     </div>
   );
 }

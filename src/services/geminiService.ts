@@ -26,8 +26,10 @@ export function hasApiKey(): boolean {
 
 export interface ExtractedAIResponse {
   requirements: EventRequirements;
+  acknowledgmentMessage: string;
+  followUpQuestionsMessage?: string;
   conciergeResponse: string;
-  suggestedFollowUps: string[];
+  suggestedFollowUps?: string[];
   rawJson?: string;
   isFallback?: boolean;
 }
@@ -195,141 +197,375 @@ export function sanitizeRequirements(data: Record<string, unknown>): EventRequir
   };
 }
 
+export const CITY_ALIASES: Record<string, string> = {
+  ahmedabad: 'Ahmedabad',
+  ahemdabad: 'Ahmedabad',
+  ahmadabad: 'Ahmedabad',
+  amdavad: 'Ahmedabad',
+  mumbai: 'Mumbai',
+  bombay: 'Mumbai',
+  delhi: 'Delhi',
+  'new delhi': 'Delhi',
+  ncr: 'Delhi',
+  bangalore: 'Bangalore',
+  bengaluru: 'Bangalore',
+  jaipur: 'Jaipur',
+  udaipur: 'Udaipur',
+  surat: 'Surat',
+  pune: 'Pune',
+  goa: 'Goa',
+  hyderabad: 'Hyderabad',
+  chennai: 'Chennai',
+  madras: 'Chennai',
+  kolkata: 'Kolkata',
+  calcutta: 'Kolkata',
+  vadodara: 'Vadodara',
+  baroda: 'Vadodara',
+  rajkot: 'Rajkot',
+  gandhinagar: 'Gandhinagar',
+  gurgaon: 'Gurgaon',
+  gurugram: 'Gurgaon',
+  noida: 'Noida',
+  chandigarh: 'Chandigarh'
+};
+
+const MONTH_MAP: Record<string, string> = {
+  jan: 'January', january: 'January',
+  feb: 'February', february: 'February',
+  mar: 'March', march: 'March',
+  apr: 'April', april: 'April',
+  may: 'May',
+  jun: 'June', june: 'June',
+  jul: 'July', july: 'July',
+  aug: 'August', august: 'August',
+  sep: 'September', sept: 'September', september: 'September',
+  oct: 'October', october: 'October',
+  nov: 'November', november: 'November',
+  dec: 'December', december: 'December'
+};
+
+export function normalizeDateString(raw: string): string {
+  let cleaned = raw.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const [abbr, full] of Object.entries(MONTH_MAP)) {
+    const regex = new RegExp(`\\b${abbr}\\b`, 'i');
+    if (regex.test(cleaned)) {
+      cleaned = cleaned.replace(regex, full);
+      break;
+    }
+  }
+  return cleaned;
+}
+
+export function extractCity(text: string): string | null {
+  const prefixMatch = text.match(/(?:city|location|venue|place)[\s:]+([a-zA-Z\s]+?)(?:,|$|\.|\n|date|meal|rooms?|food|budget|guests?|time)/i);
+  if (prefixMatch && prefixMatch[1].trim()) {
+    const raw = prefixMatch[1].trim();
+    const rawLower = raw.toLowerCase();
+    if (CITY_ALIASES[rawLower]) {
+      return CITY_ALIASES[rawLower];
+    }
+    return raw.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+
+  const lower = text.toLowerCase();
+  const aliasKeys = Object.keys(CITY_ALIASES).sort((a, b) => b.length - a.length);
+  for (const alias of aliasKeys) {
+    const regex = new RegExp(`\\b${alias}\\b`, 'i');
+    if (regex.test(lower)) {
+      return CITY_ALIASES[alias];
+    }
+  }
+
+  return null;
+}
+
+export function extractDate(text: string): string | null {
+  const prefixMatch = text.match(/(?:date|dated|on\s+date)[\s:]+([0-9a-zA-Z\s,/-]+?)(?:,|$|\.|\n|meal|rooms?|city|food|budget|guests?|time)/i);
+  if (prefixMatch && prefixMatch[1].trim()) {
+    return normalizeDateString(prefixMatch[1].trim());
+  }
+
+  const monthMatchA = text.match(/(\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember))(?:\s+\d{2,4})?)/i);
+  if (monthMatchA) {
+    return normalizeDateString(monthMatchA[1]);
+  }
+
+  const monthMatchB = text.match(/((?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember))\s+\d{1,2}(?:st|nd|rd|th)?(?:\s*,?\s*\d{2,4})?)/i);
+  if (monthMatchB) {
+    return normalizeDateString(monthMatchB[1]);
+  }
+
+  const numDate = text.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/);
+  if (numDate) {
+    return numDate[1];
+  }
+
+  const standaloneMonth = text.match(/(?:in|on)?\s*(\d{1,2})?\s*(january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+(\d{4}))?/i);
+  if (standaloneMonth) {
+    const day = standaloneMonth[1] ? standaloneMonth[1] + ' ' : '';
+    const m = standaloneMonth[2].charAt(0).toUpperCase() + standaloneMonth[2].slice(1).toLowerCase();
+    const yr = standaloneMonth[3] ? ' ' + standaloneMonth[3] : '';
+    return `${day}${m}${yr}`.trim();
+  }
+
+  return null;
+}
+
+export function extractRooms(text: string): number | null {
+  // 1. Explicit positive number first: "10 rooms", "20 rooms", "10 deluxe rooms", "5 suites"
+  const numFirst = text.match(/(\d+)\s*(?:rooms?|suites?|deluxe|accommodations?)/i);
+  if (numFirst) {
+    return parseInt(numFirst[1], 10);
+  }
+
+  // 2. Word first with digits: "rooms 10", "rooms: 10", "room: 5", "accommodation: 15"
+  const wordFirst = text.match(/(?:rooms?|accommodation|stay|suites?)[\s:]+(\d+)/i);
+  if (wordFirst) {
+    return parseInt(wordFirst[1], 10);
+  }
+
+  // 3. Zero rooms - MUST have word boundary so "10 rooms" or "20 rooms" doesn't falsely match "0 rooms"!
+  if (
+    /\b(?:no|zero|without)\s+(?:rooms?|accommodation|stay|suites?)\b/i.test(text) ||
+    /\b0\s*(?:rooms?|accommodation|stay|suites?)\b/i.test(text) ||
+    /(?:rooms?|accommodation|stay)[\s:]*\b(?:none|no|0|zero)\b/i.test(text)
+  ) {
+    return 0;
+  }
+
+  return null;
+}
+
+export function extractMeal(text: string): string | null {
+  const prefixMatch = text.match(/(?:meal|catering\s*slot)[\s:]*(dinner|lunch|breakfast|hi-tea|high\s*tea)/i);
+  if (prefixMatch) {
+    const m = prefixMatch[1].toLowerCase();
+    if (m.includes('lunch')) return 'Lunch';
+    if (m.includes('dinner')) return 'Dinner';
+    if (m.includes('breakfast')) return 'Breakfast';
+    if (m.includes('tea')) return 'Hi-Tea';
+  }
+
+  const lower = text.toLowerCase();
+  if (/\bdinner\b/i.test(lower)) return 'Dinner';
+  if (/\blunch\b/i.test(lower)) return 'Lunch';
+  if (/\b(?:hi-tea|high\s*tea)\b/i.test(lower)) return 'Hi-Tea';
+  if (/\bbreakfast\b/i.test(lower)) return 'Breakfast';
+
+  return null;
+}
+
+export function extractTime(text: string): string | null {
+  const prefixMatch = text.match(/(?:time|timing)[\s:]*([a-zA-Z0-9\s:]+?)(?:,|$|\.|\n|meal|rooms?|city|food|budget|guests?|date)/i);
+  if (prefixMatch && prefixMatch[1].trim()) {
+    const raw = prefixMatch[1].trim();
+    if (raw.length <= 20) return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
+  const lower = text.toLowerCase();
+  if (/\bevening\b/i.test(lower) || /\bnight\b/i.test(lower)) return 'Evening';
+  if (/\bafternoon\b/i.test(lower)) return 'Afternoon';
+  if (/\bmorning\b/i.test(lower) || /\bday\b/i.test(lower)) return 'Morning';
+
+  return null;
+}
+
+export function extractGuests(text: string): number | null {
+  const prefixMatch = text.match(/(?:guests?|people|pax|attendees|members|gathering)[\s:]+(\d+)/i);
+  if (prefixMatch) {
+    return parseInt(prefixMatch[1], 10);
+  }
+
+  const numFirst = text.match(/(\d+)\s*(?:guests?|people|pax|attendees|members)/i);
+  if (numFirst) {
+    return parseInt(numFirst[1], 10);
+  }
+
+  return null;
+}
+
+export function extractFood(text: string): string | null {
+  const lower = text.toLowerCase();
+  if (/\bjain\b/i.test(lower)) return 'Jain';
+  if (/\b(?:pure\s*veg|vegetarian|veg)\b/i.test(lower) && !/\bnon-veg/i.test(lower)) return 'Vegetarian';
+  if (/\bnon-veg/i.test(lower)) return 'Non-Vegetarian';
+  return null;
+}
+
+export function extractBudget(text: string): number | null {
+  const lakhWithKeyword = text.match(/(?:budget|cost|price|package|under|around|approx)[\s:]*(?:₹|inr|rs\.?)?\s*(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac|l)\b/i);
+  if (lakhWithKeyword) {
+    return Math.round(parseFloat(lakhWithKeyword[1]) * 100000);
+  }
+
+  const lakhWithCurrency = text.match(/(?:₹|inr|rs\.?)\s*(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac)\b/i);
+  if (lakhWithCurrency) {
+    return Math.round(parseFloat(lakhWithCurrency[1]) * 100000);
+  }
+
+  const standaloneLakh = text.match(/\b(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac)\b/i);
+  if (standaloneLakh) {
+    return Math.round(parseFloat(standaloneLakh[1]) * 100000);
+  }
+
+  const budgetNum = text.match(/(?:budget|cost|price|package|approx)[\s:]*(?:₹|inr|rs\.?)?\s*([\d,]+)/i);
+  if (budgetNum) {
+    const val = parseInt(budgetNum[1].replace(/,/g, ''), 10);
+    if (val >= 10000) return val;
+  }
+
+  const currencyNum = text.match(/(?:₹|inr|rs\.?)\s*([\d,]+)/i);
+  if (currencyNum) {
+    const val = parseInt(currencyNum[1].replace(/,/g, ''), 10);
+    if (val >= 10000) return val;
+  }
+
+  return null;
+}
+
+export function extractDecoration(text: string): boolean | null {
+  const lower = text.toLowerCase();
+  if (/(?:no|without|skip)\s*(?:decor|decoration|flowers?|stage)/i.test(lower)) return false;
+  if (/(?:decor|decoration|flowers?|stage|backdrop)[\s:]*(?:yes|required|needed|true)/i.test(lower)) return true;
+  if (/\b(?:decor|decoration)\s+required\b/i.test(lower)) return true;
+  return null;
+}
+
+export function extractEventType(text: string): string | null {
+  const lower = text.toLowerCase();
+  if (lower.includes('wedding') || lower.includes('marriage') || lower.includes('shaadi')) {
+    return 'Wedding';
+  } else if (lower.includes('corporate') || lower.includes('conference') || lower.includes('seminar') || lower.includes('summit')) {
+    return 'Corporate';
+  } else if (lower.includes('reception') || lower.includes('sangeet') || lower.includes('engagement') || lower.includes('anniversary')) {
+    return 'Reception / Celebration';
+  }
+  return null;
+}
+
+export function extractUpdatesFromText(text: string): Partial<EventRequirements> {
+  const updates: Partial<EventRequirements> = {};
+
+  const evType = extractEventType(text);
+  if (evType) updates.eventType = evType;
+
+  const city = extractCity(text);
+  if (city) updates.city = city;
+
+  const date = extractDate(text);
+  if (date) updates.date = date;
+
+  const rooms = extractRooms(text);
+  if (rooms !== null) updates.roomsRequired = rooms;
+
+  const meal = extractMeal(text);
+  if (meal) updates.meal = meal;
+
+  const time = extractTime(text);
+  if (time) updates.time = time;
+
+  const guests = extractGuests(text);
+  if (guests !== null) updates.guestCount = guests;
+
+  const food = extractFood(text);
+  if (food) updates.foodType = food;
+
+  const budget = extractBudget(text);
+  if (budget !== null) updates.budget = budget;
+
+  const decor = extractDecoration(text);
+  if (decor !== null) updates.decorationRequired = decor;
+
+  return updates;
+}
+
+export function computeMissingInformation(req: Partial<EventRequirements> | EventRequirements): string[] {
+  const missing: string[] = [];
+  if (!req.eventType || req.eventType === 'Not Provided') missing.push('Event Type');
+  if (!req.city || req.city === 'Not Provided') missing.push('City / Location');
+  if (!req.date || req.date === 'Not Provided') missing.push('Event Date & Year');
+  if (req.guestCount === null || req.guestCount === undefined) missing.push('Guest Count');
+  if (!req.foodType || req.foodType === 'Not Provided') missing.push('Food / Dietary Preference');
+  if (req.budget === null || req.budget === undefined) missing.push('Customer Budget');
+  if (req.roomsRequired === null && (req.eventType === 'Wedding' || req.eventType?.includes('Celebration'))) {
+    missing.push('Rooms Required');
+  }
+  return missing;
+}
+
+export function applyUpdatesToRequirements(
+  current: EventRequirements,
+  updates: Partial<EventRequirements>
+): { updatedRequirements: EventRequirements; changed: boolean } {
+  let changed = false;
+  const next: EventRequirements = { ...current };
+
+  if (updates.eventType && updates.eventType !== 'Not Provided' && updates.eventType !== next.eventType) {
+    next.eventType = updates.eventType;
+    changed = true;
+  }
+  if (updates.city && updates.city !== 'Not Provided' && updates.city !== next.city) {
+    next.city = updates.city;
+    changed = true;
+  }
+  if (updates.date && updates.date !== 'Not Provided' && updates.date !== next.date) {
+    next.date = updates.date;
+    changed = true;
+  }
+  if (updates.time && updates.time !== 'Not Provided' && updates.time !== next.time) {
+    next.time = updates.time;
+    changed = true;
+  }
+  if (typeof updates.guestCount === 'number' && updates.guestCount > 0 && updates.guestCount !== next.guestCount) {
+    next.guestCount = updates.guestCount;
+    changed = true;
+  }
+  if (updates.foodType && updates.foodType !== 'Not Provided' && updates.foodType !== next.foodType) {
+    next.foodType = updates.foodType;
+    changed = true;
+  }
+  if (updates.meal && updates.meal !== 'Not Provided' && updates.meal !== next.meal) {
+    next.meal = updates.meal;
+    changed = true;
+  }
+  if (typeof updates.decorationRequired === 'boolean' && updates.decorationRequired !== next.decorationRequired) {
+    next.decorationRequired = updates.decorationRequired;
+    changed = true;
+  }
+  if (typeof updates.roomsRequired === 'number' && updates.roomsRequired >= 0 && updates.roomsRequired !== next.roomsRequired) {
+    next.roomsRequired = updates.roomsRequired;
+    changed = true;
+  }
+  if (typeof updates.budget === 'number' && updates.budget > 0 && updates.budget !== next.budget) {
+    next.budget = updates.budget;
+    changed = true;
+  }
+
+  // Always recompute missing information dynamically
+  next.missingInformation = computeMissingInformation(next);
+
+  return { updatedRequirements: next, changed };
+}
+
 /**
  * Intelligent deterministic heuristic parser used as fallback
  * when API is unreachable or key is not provided yet.
  */
 export function extractRequirementsFallback(query: string): ExtractedAIResponse {
-  const lower = query.toLowerCase();
+  const updates = extractUpdatesFromText(query);
 
-  // Guest count extraction (e.g. 450 guests, 300 pax, 500 people)
-  let guestCount: number | null = null;
-  const guestMatch = query.match(/(\d+)\s*(?:guests?|people|pax|attendees|members)/i) || query.match(/guests?[\s:]+(\d+)/i);
-  if (guestMatch) {
-    guestCount = parseInt(guestMatch[1], 10);
-  }
+  const eventType = updates.eventType || 'Not Provided';
+  const city = updates.city || 'Not Provided';
+  const date = updates.date || 'Not Provided';
+  const time = updates.time || 'Not Provided';
+  const guestCount = updates.guestCount !== undefined ? updates.guestCount : null;
+  const foodType = updates.foodType || 'Not Provided';
+  const meal = updates.meal || 'Not Provided';
+  const decorationRequired = updates.decorationRequired !== undefined ? updates.decorationRequired : (eventType === 'Wedding' ? true : null);
+  const roomsRequired = updates.roomsRequired !== undefined ? updates.roomsRequired : null;
+  const budget = updates.budget !== undefined ? updates.budget : null;
 
-  // Budget extraction (e.g. 6 lakhs, 6,00,000, 600000, ₹6,00,000)
-  let budget: number | null = null;
-  const lakhMatch = query.match(/(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac|l)\b/i);
-  if (lakhMatch) {
-    budget = Math.round(parseFloat(lakhMatch[1]) * 100000);
-  } else {
-    const rawBudgetMatch = query.match(/(?:budget|cost|price|package|under|around)[\s:]*(?:₹|inr|rs\.?)?\s*([\d,]+)/i) ||
-      query.match(/(?:₹|inr|rs\.?)\s*([\d,]+)/i);
-    if (rawBudgetMatch) {
-      const num = parseInt(rawBudgetMatch[1].replace(/,/g, ''), 10);
-      if (num > 10000) budget = num;
-    }
-  }
-
-  // Rooms extraction
-  let roomsRequired: number | null = null;
-  const roomsMatch = query.match(/(\d+)\s*(?:rooms?|suites?|deluxe)/i) || query.match(/rooms?[\s:]+(\d+)/i);
-  if (roomsMatch) {
-    roomsRequired = parseInt(roomsMatch[1], 10);
-  }
-
-  // City extraction
-  let city = 'Not Provided';
-  const cities = ['Ahmedabad', 'Mumbai', 'Delhi', 'Bangalore', 'Jaipur', 'Udaipur', 'Surat', 'Pune', 'Goa', 'Hyderabad', 'Chennai', 'Kolkata'];
-  for (const c of cities) {
-    if (lower.includes(c.toLowerCase())) {
-      city = c;
-      break;
-    }
-  }
-
-  // Event type extraction
-  let eventType = 'Not Provided';
-  if (lower.includes('wedding') || lower.includes('marriage') || lower.includes('shaadi')) {
-    eventType = 'Wedding';
-  } else if (lower.includes('corporate') || lower.includes('conference') || lower.includes('seminar') || lower.includes('summit')) {
-    eventType = 'Corporate';
-  } else if (lower.includes('reception') || lower.includes('sangeet') || lower.includes('engagement') || lower.includes('anniversary')) {
-    eventType = 'Reception / Celebration';
-  }
-
-  // Food type extraction
-  let foodType = 'Not Provided';
-  if (lower.includes('jain')) {
-    foodType = 'Jain';
-  } else if (lower.includes('veg') || lower.includes('vegetarian')) {
-    foodType = 'Vegetarian';
-  }
-
-  // Meal extraction
-  let meal = 'Not Provided';
-  if (lower.includes('dinner') || lower.includes('evening banquet')) {
-    meal = 'Dinner';
-  } else if (lower.includes('lunch') || lower.includes('afternoon')) {
-    meal = 'Lunch';
-  }
-
-  // Time extraction
-  let time = 'Not Provided';
-  if (lower.includes('evening') || lower.includes('night')) {
-    time = 'Evening';
-  } else if (lower.includes('morning') || lower.includes('afternoon') || lower.includes('day')) {
-    time = 'Afternoon';
-  }
-
-  // Date extraction
-  let date = 'Not Provided';
-  const dateMatch = query.match(/(\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{4})?)/i) ||
-    query.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/);
-  if (dateMatch) {
-    date = dateMatch[1];
-  } else if (lower.includes('december') || lower.includes('november') || lower.includes('january')) {
-    const monthMatch = query.match(/(?:on|in)?\s*(\d{1,2})?\s*(december|november|january|february|march|april|may|june|july|august|september|october)/i);
-    if (monthMatch) {
-      date = `${monthMatch[1] ? monthMatch[1] + ' ' : ''}${monthMatch[2]}`;
-    }
-  }
-
-  // Decoration
-  let decorationRequired: boolean | null = null;
-  if (lower.includes('no decor') || lower.includes('without decor')) {
-    decorationRequired = false;
-  } else if (lower.includes('decor') || lower.includes('flower') || lower.includes('stage') || lower.includes('backdrop') || eventType === 'Wedding') {
-    decorationRequired = true;
-  }
-
-  const rawMissing: string[] = [];
-  if (eventType === 'Not Provided') rawMissing.push('event type');
-  if (city === 'Not Provided') rawMissing.push('city');
-  if (date === 'Not Provided') rawMissing.push('event date');
-  if (guestCount === null) rawMissing.push('guest count');
-  if (foodType === 'Not Provided') rawMissing.push('food');
-  if (budget === null) rawMissing.push('budget');
-  if (roomsRequired === null && (eventType === 'Wedding' || eventType.includes('Celebration'))) rawMissing.push('rooms');
-
-  const deduplicatedMissing = normalizeMissingInfo(rawMissing);
-
-  // Formulate active numbered questions for Avela's reply
-  const missingQuestions: string[] = [];
-  if (city === 'Not Provided') missingQuestions.push('Which city would you like to host your event in?');
-  if (date === 'Not Provided') missingQuestions.push('What is the preferred event date and year?');
-  if (guestCount === null) missingQuestions.push('What is your estimated guest count?');
-  if (foodType === 'Not Provided') missingQuestions.push('What are your catering preferences (Pure Vegetarian or Jain)?');
-  if (budget === null) missingQuestions.push('What is your approximate overall budget for this event?');
-  if (roomsRequired === null && (eventType === 'Wedding' || eventType.includes('Celebration'))) missingQuestions.push('How many guest accommodation rooms will you need?');
-
-  // Formulate user quick-answer chips
-  const quickAnswers: string[] = [];
-  if (city === 'Not Provided') quickAnswers.push('City: Ahmedabad');
-  if (date === 'Not Provided') quickAnswers.push('Date: 20 December 2026');
-  if (budget === null) {
-    quickAnswers.push('Budget: ₹6,00,000');
-    quickAnswers.push('Budget: ₹4,00,000');
-  }
-  if (guestCount === null) quickAnswers.push('Guests: 450');
-  if (foodType === 'Not Provided') quickAnswers.push('Food: Jain');
-  if (roomsRequired === null) quickAnswers.push('Rooms: 10');
-  if (time === 'Not Provided') quickAnswers.push('Time: Evening');
-  if (meal === 'Not Provided') quickAnswers.push('Meal: Dinner');
-
-  const req: EventRequirements = {
+  const tempReq: EventRequirements = {
     eventType,
     city,
     date,
@@ -340,30 +576,46 @@ export function extractRequirementsFallback(query: string): ExtractedAIResponse 
     decorationRequired,
     roomsRequired,
     budget,
-    missingInformation: deduplicatedMissing,
+    missingInformation: [],
     conflictingInformation: []
   };
 
-  let responseText = `Welcome to Avela Concierge. I have registered your ${eventType !== 'Not Provided' ? eventType.toLowerCase() : 'event'} profile`;
-  if (guestCount !== null) responseText += ` for ${guestCount} guests`;
-  if (foodType !== 'Not Provided') responseText += ` with ${foodType} catering`;
-  if (roomsRequired !== null) responseText += ` and ${roomsRequired} guest rooms`;
-  responseText += `.`;
+  const deduplicatedMissing = computeMissingInformation(tempReq);
+  tempReq.missingInformation = deduplicatedMissing;
 
-  if (missingQuestions.length > 0) {
-    responseText += `\n\nTo recommend the most suitable verified banquet packages and calculate an itemized quotation, I need a few more details from you:\n`;
-    missingQuestions.forEach((q, i) => {
-      responseText += `\n${i + 1}. ${q}`;
-    });
-    responseText += `\n\nPlease reply in the chat with your preferred details so I can proceed with matching the banquet properties.`;
-  } else {
-    responseText += `\n\nAll event specifications are verified. I have matched your profile against our verified property dataset and generated your itemized quotation below:`;
+  // Formulate active numbered questions for Avela's reply
+  const missingQuestions: string[] = [];
+  if (city === 'Not Provided') missingQuestions.push('Which city would you like to host your event in?');
+  if (date === 'Not Provided') missingQuestions.push('What is the preferred event date and year?');
+  if (guestCount === null) missingQuestions.push('What is your estimated guest count?');
+  if (foodType === 'Not Provided') missingQuestions.push('What are your catering preferences (Pure Vegetarian or Jain)?');
+  if (budget === null) missingQuestions.push('What is your approximate overall budget for this event?');
+  if (roomsRequired === null && (eventType === 'Wedding' || eventType.includes('Celebration'))) {
+    missingQuestions.push('How many guest accommodation rooms will you need?');
   }
 
+  let ackMsg = `Welcome to Avela Concierge. I have registered your ${eventType !== 'Not Provided' ? eventType.toLowerCase() : 'event'} specifications`;
+  if (guestCount !== null) ackMsg += ` for ${guestCount} guests`;
+  if (foodType !== 'Not Provided') ackMsg += ` with ${foodType} catering`;
+  if (roomsRequired !== null) ackMsg += ` and ${roomsRequired} guest rooms`;
+  ackMsg += `. Here is your extracted event profile:`;
+
+  let followUpMsg: string | undefined = undefined;
+  if (missingQuestions.length > 0) {
+    followUpMsg = `To help me recommend the ideal verified banquet properties and prepare an itemized quotation, could you please clarify:\n`;
+    missingQuestions.forEach((q, i) => {
+      followUpMsg += `\n${i + 1}. ${q}`;
+    });
+    followUpMsg += `\n\nPlease reply in the chat with your preferred details so I can proceed with matching the banquet properties.`;
+  }
+
+  let responseText = `${ackMsg}\n\n${followUpMsg || 'All event specifications are verified.'}`;
+
   return {
-    requirements: req,
+    requirements: tempReq,
+    acknowledgmentMessage: ackMsg,
+    followUpQuestionsMessage: followUpMsg,
     conciergeResponse: responseText,
-    suggestedFollowUps: quickAnswers.slice(0, 5),
     isFallback: true
   };
 }
@@ -391,12 +643,11 @@ Please extract the event specifications according to the required JSON schema. R
 - Never mention Gemini, Google, or an LLM.
 - If information is not in the customer's text, output "Not Provided" or null.
 - In "conciergeResponse": Avela MUST warmly ask the customer the numbered questions for any missing information!
-- In "suggestedFollowUps": Output quick user replies (e.g. "City: Ahmedabad", "Date: 20 December 2026", "Budget: ₹6,00,000").
 - Output raw JSON only.
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash-lite',
       contents: promptText,
       config: {
         systemInstruction: AVELA_SYSTEM_INSTRUCTION,
@@ -417,33 +668,41 @@ Please extract the event specifications according to the required JSON schema. R
     const parsedJson = JSON.parse(cleaned);
     const sanitizedReq = sanitizeRequirements(parsedJson);
 
-    // If the LLM returned questions instead of user answers, generate user quick answers
-    let followUps: string[] = [];
-    if (Array.isArray(parsedJson.suggestedFollowUps) && parsedJson.suggestedFollowUps.length > 0) {
-      followUps = parsedJson.suggestedFollowUps.filter((f: string) => !f.endsWith('?'));
+    // Formulate active numbered questions from missing fields
+    const missingQuestions: string[] = [];
+    if (sanitizedReq.city === 'Not Provided') missingQuestions.push('Which city will your event take place in?');
+    if (sanitizedReq.date === 'Not Provided') missingQuestions.push('What is the preferred event date and year?');
+    if (sanitizedReq.guestCount === null) missingQuestions.push('What is your estimated guest count?');
+    if (sanitizedReq.foodType === 'Not Provided') missingQuestions.push('What are your catering preferences (Pure Vegetarian or Jain)?');
+    if (sanitizedReq.budget === null) missingQuestions.push('What is your approximate overall budget for this event?');
+    if (sanitizedReq.roomsRequired === null && (sanitizedReq.eventType === 'Wedding' || sanitizedReq.eventType.includes('Celebration'))) {
+      missingQuestions.push('How many guest accommodation rooms will you need?');
     }
 
-    if (followUps.length === 0) {
-      if (sanitizedReq.city === 'Not Provided') followUps.push('City: Ahmedabad');
-      if (sanitizedReq.date === 'Not Provided') followUps.push('Date: 20 December 2026');
-      if (sanitizedReq.budget === null) {
-        followUps.push('Budget: ₹6,00,000');
-        followUps.push('Budget: ₹4,00,000');
-      }
-      if (sanitizedReq.guestCount === null) followUps.push('Guests: 450');
-      if (sanitizedReq.foodType === 'Not Provided') followUps.push('Food: Jain');
-      if (sanitizedReq.time === 'Not Provided') followUps.push('Time: Evening');
-      if (sanitizedReq.meal === 'Not Provided') followUps.push('Meal: Dinner');
+    let ackMsg = `Welcome to Avela Concierge. I have registered your ${sanitizedReq.eventType !== 'Not Provided' ? sanitizedReq.eventType.toLowerCase() : 'event'} specifications`;
+    if (sanitizedReq.guestCount !== null) ackMsg += ` for ${sanitizedReq.guestCount} guests`;
+    if (sanitizedReq.foodType !== 'Not Provided') ackMsg += ` with ${sanitizedReq.foodType} catering`;
+    if (sanitizedReq.roomsRequired !== null) ackMsg += ` and ${sanitizedReq.roomsRequired} guest rooms`;
+    ackMsg += `. Here is your extracted event profile:`;
+
+    let followUpMsg: string | undefined = undefined;
+    if (missingQuestions.length > 0) {
+      followUpMsg = `To help me recommend the ideal verified banquet properties and prepare an itemized quotation, could you please clarify:\n`;
+      missingQuestions.forEach((q, i) => {
+        followUpMsg += `\n${i + 1}. ${q}`;
+      });
+      followUpMsg += `\n\nPlease reply in the chat with your preferred details so I can proceed with matching the banquet properties.`;
     }
 
     const conciergeMsg: string = typeof parsedJson.conciergeResponse === 'string' && parsedJson.conciergeResponse.trim()
       ? parsedJson.conciergeResponse
-      : `Welcome to Avela Concierge. I have registered your event requirements.`;
+      : `${ackMsg}\n\n${followUpMsg || 'All event specifications are verified.'}`;
 
     return {
       requirements: sanitizedReq,
+      acknowledgmentMessage: ackMsg,
+      followUpQuestionsMessage: followUpMsg,
       conciergeResponse: conciergeMsg,
-      suggestedFollowUps: followUps.slice(0, 5),
       rawJson: cleaned,
       isFallback: false
     };
@@ -461,74 +720,21 @@ export async function answerFollowUpWithGemini(
   conversationHistory: { sender: 'user' | 'assistant'; text: string }[],
   currentRequirements: EventRequirements
 ): Promise<{ text: string; updatedRequirements?: Partial<EventRequirements> }> {
+  const lastUserMsg = conversationHistory[conversationHistory.length - 1]?.text || '';
+  const localUpdates = extractUpdatesFromText(lastUserMsg);
+
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    const lastUserMsg = conversationHistory[conversationHistory.length - 1]?.text || '';
-    const lower = lastUserMsg.toLowerCase();
-    const updates: Partial<EventRequirements> = {};
-
-    // City
-    const cities = ['Ahmedabad', 'Mumbai', 'Delhi', 'Bangalore', 'Jaipur', 'Udaipur', 'Surat', 'Pune', 'Goa', 'Hyderabad', 'Chennai', 'Kolkata'];
-    for (const c of cities) {
-      if (lower.includes(c.toLowerCase())) {
-        updates.city = c;
-        break;
-      }
-    }
-
-    // Budget
-    const lakhMatch = lastUserMsg.match(/(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac|l)\b/i);
-    if (lakhMatch) {
-      updates.budget = Math.round(parseFloat(lakhMatch[1]) * 100000);
-    } else {
-      const numMatch = lastUserMsg.match(/(?:budget|cost|price|package|around|under)?[\s:]*(?:₹|inr|rs\.?)?\s*([\d,]+)/i);
-      if (numMatch) {
-        const parsed = parseInt(numMatch[1].replace(/,/g, ''), 10);
-        if (parsed > 10000) updates.budget = parsed;
-      }
-    }
-
-    // Date
-    const dateMatch = lastUserMsg.match(/(\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{4})?)/i) ||
-      lastUserMsg.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/);
-    if (dateMatch) {
-      updates.date = dateMatch[1];
-    } else if (lower.includes('december') || lower.includes('november')) {
-      const m = lastUserMsg.match(/(?:on|in)?\s*(\d{1,2})?\s*(december|november|january)/i);
-      if (m) updates.date = `${m[1] ? m[1] + ' ' : ''}${m[2]}`;
-    }
-
-    // Guests
-    const gMatch = lastUserMsg.match(/(\d+)\s*(?:guests?|people|pax|attendees)/i);
-    if (gMatch) updates.guestCount = parseInt(gMatch[1], 10);
-
-    // Food
-    if (lower.includes('jain')) updates.foodType = 'Jain';
-    else if (lower.includes('veg')) updates.foodType = 'Vegetarian';
-
-    // Rooms
-    if (lower.includes('no room') || lower.includes('0 room') || lower.includes('without room')) {
-      updates.roomsRequired = 0;
-    } else {
-      const rMatch = lastUserMsg.match(/(\d+)\s*(?:rooms?|suites?)/i);
-      if (rMatch) updates.roomsRequired = parseInt(rMatch[1], 10);
-    }
-
-    // Meal & Time
-    if (lower.includes('dinner')) updates.meal = 'Dinner';
-    if (lower.includes('lunch')) updates.meal = 'Lunch';
-    if (lower.includes('evening')) updates.time = 'Evening';
-
     let reply = 'Thank you for providing these details. I have updated your celebration profile.';
-    if (Object.keys(updates).length > 0) {
-      const updatedKeys = Object.keys(updates).join(', ');
-      reply = `I have registered your ${updatedKeys} specifications. Updating your banquet evaluation and quotations now...`;
+    const updatedKeys = Object.keys(localUpdates);
+    if (updatedKeys.length > 0) {
+      reply = `I have registered your ${updatedKeys.join(', ')} specifications. Updating your banquet evaluation and quotations now...`;
     }
 
     return {
       text: reply,
-      updatedRequirements: updates
+      updatedRequirements: localUpdates
     };
   }
 
@@ -545,22 +751,26 @@ ${conversationHistory.map((m) => `${m.sender.toUpperCase()}: ${m.text}`).join('\
 
 Task:
 Respond graciously to the customer's latest query.
-If the customer has provided any new information (such as setting their budget, confirming dates, adjusting guest counts, specifying Jain food, or room count), output a JSON object:
+If the customer has provided any new information (such as city, date, timing, meal, budget, guest count, dietary preference, room count), output a JSON object:
 {
   "reply": "Your response to the user as Avela (no mention of AI/Gemini)",
   "extractedUpdates": {
-    "budget": number or null (only if mentioned/updated),
-    "guestCount": number or null (only if mentioned/updated),
-    "roomsRequired": number or null (only if mentioned/updated),
-    "foodType": string (only if updated),
-    "date": string (only if updated)
+    "city": string or null (e.g. "Ahmedabad"),
+    "date": string or null (e.g. "26 September 2026"),
+    "time": string or null (e.g. "Evening"),
+    "guestCount": number or null (e.g. 700),
+    "foodType": string or null (e.g. "Jain"),
+    "meal": string or null (e.g. "Lunch" or "Dinner"),
+    "decorationRequired": boolean or null,
+    "roomsRequired": number or null (e.g. 10),
+    "budget": number or null (e.g. 600000)
   }
 }
 Return raw JSON only.
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash-lite',
       contents: promptText,
       config: {
         systemInstruction: AVELA_SYSTEM_INSTRUCTION,
@@ -571,14 +781,21 @@ Return raw JSON only.
     const cleaned = (response.text || '{}').trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
     const parsed = JSON.parse(cleaned);
 
+    const aiUpdates = (parsed && typeof parsed.extractedUpdates === 'object' && parsed.extractedUpdates) || {};
+    const mergedUpdates: Partial<EventRequirements> = {
+      ...aiUpdates,
+      ...localUpdates
+    };
+
     return {
-      text: parsed.reply || 'Your event details have been noted.',
-      updatedRequirements: parsed.extractedUpdates
+      text: parsed.reply || 'Your event details have been noted and verified.',
+      updatedRequirements: mergedUpdates
     };
   } catch (err) {
-    console.warn('Gemini chat follow-up error:', err);
+    console.warn('Gemini chat follow-up error, relying on deterministic extractor:', err);
     return {
-      text: 'I have noted your preferences and updated your banquet inquiry profile accordingly.'
+      text: 'I have noted your preferences and updated your banquet inquiry profile accordingly.',
+      updatedRequirements: localUpdates
     };
   }
 }

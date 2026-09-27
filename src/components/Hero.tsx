@@ -12,8 +12,6 @@ import {
   RotateCcw,
   Sparkle
 } from 'lucide-react';
-import ApiKeyModal from './ApiKeyModal';
-import { hasApiKey } from '../services/geminiService';
 
 interface VenueMatch {
   id: string;
@@ -83,8 +81,6 @@ export default function Hero({ onStartChat }: HeroProps) {
   const [savedVenues, setSavedVenues] = useState<string[]>([]);
   const [reservedVenueId, setReservedVenueId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'verified' | 'instant-hold'>('all');
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  const [keyActive, setKeyActive] = useState(hasApiKey());
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -194,21 +190,6 @@ export default function Hero({ onStartChat }: HeroProps) {
             </span>
           </div>
         </div>
-
-        {/* API Key settings trigger */}
-        <button
-          type="button"
-          onClick={() => setIsKeyModalOpen(true)}
-          className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-normal transition-colors border border-white/20 shadow-xs"
-          title="Configure Gemini API Key"
-        >
-          <Sparkle className="w-3.5 h-3.5 text-[#dbc6f9]" />
-          <span className="hidden sm:inline">Avela AI Setup</span>
-          <span
-            className={`w-2 h-2 rounded-full ${keyActive ? 'bg-emerald-400' : 'bg-amber-400'}`}
-            title={keyActive ? 'Gemini API Key active' : 'Using Local Heuristic Engine'}
-          />
-        </button>
       </header>
 
       {/* Main Hero Body */}
@@ -597,13 +578,6 @@ export default function Hero({ onStartChat }: HeroProps) {
       <footer className="relative z-10 w-full px-6 py-4 text-center text-xs text-white/50 font-normal">
         <span>© {new Date().getFullYear()} Avela Banquet AI · Tailored Event & Banquet Concierge</span>
       </footer>
-
-      {/* API Key Modal */}
-      <ApiKeyModal
-        isOpen={isKeyModalOpen}
-        onClose={() => setIsKeyModalOpen(false)}
-        onKeyUpdated={() => setKeyActive(hasApiKey())}
-      />
     </section>
   );
 }
