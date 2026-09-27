@@ -1,17 +1,24 @@
 # Avela AI · Luxury Banquet & Event Intelligence Platform
 
-> An exclusive, AI-orchestrated banquet concierge and deterministic quotation engine for luxury celebration and corporate venue bookings.
+> An exclusive, AI-orchestrated banquet concierge and deterministic quotation engine for luxury celebration and corporate venue bookings.  
+> **Created by [Harsh Rathod](https://harshrathod-portfolio.vercel.app/)**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Google GenAI SDK](https://img.shields.io/badge/Google_GenAI-4285F4?style=flat-square&logo=google&logoColor=white)](https://www.npmjs.com/package/@google/genai)
+[![Portfolio](https://img.shields.io/badge/Portfolio-Harsh_Rathod-6366F1?style=flat-square&logo=vercel&logoColor=white)](https://harshrathod-portfolio.vercel.app/)
+[![Demo Video](https://img.shields.io/badge/🎬_Demo_Video-Watch_on_Google_Drive-FF0000?style=flat-square&logo=googledrive&logoColor=white)](https://drive.google.com/file/d/1mCOZJBOhCokfycx09aH6uwQ8H1LQm2xf/view?usp=sharing)
 
 <br />
 
 <p align="center">
-  <img src="./public/Thumbnail.png" alt="Avela AI - Luxury Banquet & Event Intelligence Platform" width="100%" style="border-radius: 12px;" />
+  <a href="https://drive.google.com/file/d/1mCOZJBOhCokfycx09aH6uwQ8H1LQm2xf/view?usp=sharing" target="_blank">
+    <img src="./public/Thumbnail.png" alt="Avela AI - Watch Demo Video" width="100%" style="border-radius: 12px;" />
+  </a>
+  <br />
+  <sub>🎬 <b><a href="https://drive.google.com/file/d/1mCOZJBOhCokfycx09aH6uwQ8H1LQm2xf/view?usp=sharing" target="_blank">Click here to watch the full Video Demo on Google Drive</a></b></sub>
 </p>
 
 ---
@@ -19,6 +26,8 @@
 ## 1. Project Overview
 
 **Avela AI** is an intelligent banquet discovery and quotation system designed to bridge the gap between unstructured customer inquiries and rigid venue booking requirements. Built with an exclusive luxury concierge persona (**Avela**), the application interprets complex customer requests, validates constraints against curated banquet packages, detects missing information, and deterministically calculates itemized quotations with exact statutory taxes.
+
+- 🎬 **Video Demo:** [Watch Full Demo Video on Google Drive](https://drive.google.com/file/d/1mCOZJBOhCokfycx09aH6uwQ8H1LQm2xf/view?usp=sharing)
 
 ---
 
@@ -207,6 +216,13 @@ With an additional day of development, the following enhancements would be prior
    - Provide interactive 3D or visual floorplan selections directly inside the quotation card, allowing customers to preview hall seating arrangements.
 6. **PDF Quotation Generator:**
    - Add a one-click *"Download Official Luxury Quotation PDF"* button featuring Avela's branded letterhead, itemized pricing breakdown, terms, and payment milestones.
+
+---
+
+## Author & Developer
+
+**Harsh Rathod**
+- **Portfolio:** [https://harshrathod-portfolio.vercel.app/](https://harshrathod-portfolio.vercel.app/)
 
 ---
 

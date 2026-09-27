@@ -575,8 +575,17 @@ export default function Hero({ onStartChat }: HeroProps) {
       </main>
 
       {/* Subtle footer */}
-      <footer className="relative z-10 w-full px-6 py-4 text-center text-xs text-white/50 font-normal">
+      <footer className="relative z-10 w-full px-6 py-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs text-white/60 font-normal text-center">
         <span>© {new Date().getFullYear()} Avela Banquet AI · Tailored Event & Banquet Concierge</span>
+        <span className="hidden sm:inline text-white/30">·</span>
+        <a
+          href="https://harshrathod-portfolio.vercel.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-white/80 hover:text-white transition-colors underline underline-offset-4 decoration-white/30 hover:decoration-white font-normal"
+        >
+          Designed & Developed by Harsh Rathod ↗
+        </a>
       </footer>
     </section>
   );
