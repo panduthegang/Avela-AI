@@ -1,78 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');
-@import url('https://fonts.cdnfonts.com/css/dm-sans');
 @import "tailwindcss";
-
-@theme {
-  --font-sans: 'DM Sans', sans-serif;
-  --font-display: 'DM Sans', sans-serif;
-}
-
-html, body, #root, * {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-}
 
 @layer base {
   :root {
-    --color-hero-bg: #111424;
-    --color-glass: rgba(255, 255, 255, 0.12);
-    --color-glass-border: rgba(255, 255, 255, 0.22);
-    --color-glass-hover: rgba(255, 255, 255, 0.18);
+    --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
-  body {
-    background-color: #0d0f1a;
-    color: #ffffff;
-    overflow-x: hidden;
+  html, body {
+    font-family: var(--font-sans);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Strict restriction: only DM Sans, no bold */
+  * {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+
+  h1, h2, h3, h4, h5, h6, strong, b, button, input, textarea, select {
+    font-weight: 500 !important; /* normal-medium weight, strictly no bold (>500) */
   }
 }
 
-/* Glassmorphism helpers for the ethereal floral backdrop */
+/* Custom delicate scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Glassmorphism & subtle ambient light */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-}
-
-.glass-input {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 20px 50px -10px rgba(10, 10, 30, 0.45),
-              0 0 0 1px rgba(255, 255, 255, 0.15) inset,
-              0 0 35px -5px rgba(244, 114, 182, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 
+    0 20px 40px -15px rgba(27, 24, 66, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+    0 1px 2px 0 rgba(255, 255, 255, 0.8) inset;
 }
 
-.glass-pill {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+.glass-panel-dark {
+  background: rgba(24, 25, 42, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.4);
 }
 
-.glow-btn-primary {
-  background: #ffffff;
-  color: #111827;
-  box-shadow: 0 4px 20px -2px rgba(255, 255, 255, 0.35);
-}
-
-.glow-btn-secondary {
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #ffffff;
-}
-
-@keyframes float-slow {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-.animate-float-subtle {
-  animation: float-slow 6s ease-in-out infinite;
+.ambient-glow {
+  box-shadow: 0 0 60px 10px rgba(186, 170, 255, 0.25);
 }

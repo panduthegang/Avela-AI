@@ -1,215 +1,493 @@
-import React, { useState, useRef } from 'react';
-import { 
-  CornerDownRight, 
-  Send, 
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Sparkles,
+  ArrowUp,
   X,
-  Menu,
-  CheckCircle2
+  Users,
+  DollarSign,
+  MapPin,
+  CheckCircle2,
+  Wine,
+  Heart,
+  RotateCcw,
+  Sparkle
 } from 'lucide-react';
 
+interface VenueMatch {
+  id: string;
+  name: string;
+  tagline: string;
+  capacity: string;
+  budget: string;
+  matchScore: number;
+  location: string;
+  features: string[];
+  cateringHighlight: string;
+  imageUrl: string;
+  availability: string;
+}
+
+const SAMPLE_VENUES: VenueMatch[] = [
+  {
+    id: 'venue-1',
+    name: 'The Glasshouse & Botanical Ballroom',
+    tagline: 'Sunlit conservatory with crystal chandeliers and manicured lawn',
+    capacity: '150 – 380 Guests',
+    budget: '$12,500 – $16,000 package',
+    matchScore: 99,
+    location: 'Lakeside District, Central Park West',
+    features: ['Bridal Dressing Suite', 'Outdoor Cocktail Lawn', 'Dimmable Ambient Rigging', 'Valet Parking'],
+    cateringHighlight: '5-Course Gourmet Plated Menu with Artisanal Pastry Bar',
+    imageUrl: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=800&q=80',
+    availability: 'Available on your selected weekend'
+  },
+  {
+    id: 'venue-2',
+    name: 'The Lumina Skyline Banquet & Terrace',
+    tagline: 'Modern panoramic glass rotunda with 360-degree city twilight views',
+    capacity: '200 – 450 Guests',
+    budget: '$14,000 – $19,500 package',
+    matchScore: 96,
+    location: 'Metropolitan Tower, 42nd Fl',
+    features: ['High-Fidelity Audio/Visual', 'Private Elevator Foyer', 'Open-Air Sky Terrace', 'Custom Monogram Projection'],
+    cateringHighlight: 'Chef-Curated Global Stations & Bespoke Mixology Bar',
+    imageUrl: 'https://images.unsplash.com/photo-1544077960-604201fe74bc?auto=format&fit=crop&w=800&q=80',
+    availability: '3 prime dates left in Autumn'
+  },
+  {
+    id: 'venue-3',
+    name: 'Sovereign Heritage Hall & Gardens',
+    tagline: 'Timeless architectural grandeur with hand-carved arches and warm uplighting',
+    capacity: '250 – 600 Guests',
+    budget: '$16,500 – $22,000 package',
+    matchScore: 93,
+    location: 'Historic Estate Gardens',
+    features: ['Grand Mezzanine Balcony', 'Dedicated Banquet Concierge', 'Acoustic Soundproofing', 'Full Commercial Kitchen'],
+    cateringHighlight: 'Royal Multi-Cuisine Feast with Live Interactive Cooking Stations',
+    imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?auto=format&fit=crop&w=800&q=80',
+    availability: 'Instant hold available'
+  }
+];
+
 export default function Hero() {
-  const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'Product' | 'Solutions' | 'Venues' | 'Pricing'>('Product');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchStep, setSearchStep] = useState('');
+  const [searchResults, setSearchResults] = useState<VenueMatch[] | null>(null);
+  const [savedVenues, setSavedVenues] = useState<string[]>([]);
+  const [reservedVenueId, setReservedVenueId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'verified' | 'instant-hold'>('all');
 
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleQuerySubmit = (e?: React.FormEvent) => {
+  // Auto-resize textarea smoothly
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(Math.max(textareaRef.current.scrollHeight, 72), 160)}px`;
+    }
+  }, [prompt]);
+
+  const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!query.trim()) return;
+    const query = prompt.trim() || 'Luxury evening banquet hall for 250 guests with ballroom and outdoor lawn';
 
-    setIsSubmitting(true);
+    setIsSearching(true);
+    setSearchStep('Analyzing event specifications & aesthetic vibe...');
+
     setTimeout(() => {
-      setIsSubmitting(false);
-      setToastMessage('Query submitted! Finding matching banquets...');
-      setTimeout(() => setToastMessage(null), 4000);
+      setSearchStep('Querying availability across 180+ verified banquet halls...');
     }, 600);
+
+    setTimeout(() => {
+      setSearchStep('Tailoring catering packages & seating arrangements...');
+    }, 1200);
+
+    setTimeout(() => {
+      setIsSearching(false);
+      setSearchResults(SAMPLE_VENUES);
+      setTimeout(() => {
+        const el = document.getElementById('ai-results-anchor');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    }, 1800);
+  };
+
+  const toggleSaveVenue = (id: string) => {
+    setSavedVenues((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleInstantHold = (id: string) => {
+    setReservedVenueId(id);
+    setTimeout(() => {
+      setReservedVenueId(null);
+    }, 4500);
   };
 
   return (
-    <div 
-      className="relative min-h-screen w-full bg-cover bg-center bg-no-repeat text-white flex flex-col justify-between selection:bg-rose-500/30 selection:text-white"
-      style={{
-        backgroundImage: `url('https://res.cloudinary.com/dkev7ein3/image/upload/v1790440624/Hero_mccrdk.png')`,
-        backgroundColor: '#131422',
-        fontFamily: 'DM Sans'
-      }}
-    >
-      {/* Subtle protective gradient scrim to maintain contrast across floral background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0c0d1a]/55 via-transparent to-[#0a0c16]/75 pointer-events-none" />
+    <section className="relative min-h-screen w-full flex flex-col justify-between overflow-x-hidden">
+      {/* Background Graphic Image supplied by user */}
+      <div
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        style={{
+          backgroundImage: `url('https://res.cloudinary.com/dkev7ein3/image/upload/v1790440624/Hero_mccrdk.png')`,
+          backgroundColor: '#1b1b36',
+        }}
+        aria-hidden="true"
+      />
 
-      {/* Toast Feedback */}
-      {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 max-w-md p-4 rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-emerald-400/40 shadow-2xl text-white text-xs flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <p className="leading-snug">{toastMessage}</p>
+      {/* Atmospheric gentle depth overlay so text & input retain crystal-clear legibility */}
+      <div 
+        className="absolute inset-0 z-0 bg-gradient-to-b from-[#181a30]/25 via-transparent to-[#121324]/35 pointer-events-none" 
+        aria-hidden="true"
+      />
+
+      {/* Top Bar / Header:
+          Only clean brand identity on top-left.
+          Per instruction: NO top 4 nav buttons, NO "Try for free" button, and NO top-right banquet badge!
+      */}
+      <header className="relative z-20 w-full px-5 sm:px-8 md:px-12 py-6 flex items-center justify-between">
+        {/* Brand Logo matching the dribbble inspiration's 3-petal mark */}
+        <div className="flex items-center gap-3 select-none">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-sm">
+            <svg
+              className="w-5 h-5 text-white"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-label="Avela logo icon"
+            >
+              <path d="M7 4C7 4 4 8 4 12C4 16 7 20 7 20C7 20 5 15.5 5 12C5 8.5 7 4 7 4Z" opacity="0.75" />
+              <path d="M12 3C12 3 9 7.5 9 12C9 16.5 12 21 12 21C12 21 10 16 10 12C10 8 12 3 12 3Z" opacity="0.9" />
+              <path d="M17 2C17 2 14 7 14 12C14 17 17 22 17 22C17 22 15 16.5 15 12C15 7.5 17 2 17 2Z" />
+            </svg>
           </div>
-          <button 
-            onClick={() => setToastMessage(null)}
-            className="p-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 shrink-0"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* TOP NAVIGATION BAR */}
-      <header className="relative z-30 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7">
-        <div className="flex items-center justify-between">
-          
-          {/* Logo & Brand Wordmark */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center shadow-lg shadow-black/10 transition-transform hover:scale-105 cursor-pointer">
-              <svg 
-                className="w-5 h-5 text-white" 
-                viewBox="0 0 24 24" 
-                fill="currentColor"
-              >
-                <path d="M12 2C8.5 2 4 6 4 12c0 4.5 3 8.5 7 9.8V15c-1.5 0-2.5-.5-3-1.5 1.5-.5 2.5-1.5 3-3V6c0-.5.5-1 1-1s1 .5 1 1v4.5c.5 1.5 1.5 2.5 3 3-.5 1-1.5 1.5-3 1.5v6.8c4-1.3 7-5.3 7-9.8 0-6-4.5-10-8-10z" />
-              </svg>
-            </div>
-            <span className="text-2xl font-bold tracking-tight text-white drop-shadow-sm">
+          <div className="flex flex-col">
+            <span className="text-white text-lg sm:text-xl font-medium tracking-tight">
               Avela
             </span>
           </div>
-
-          {/* Translucent Frosted Glass Pill Menu */}
-          <nav className="hidden md:flex items-center p-1.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 shadow-lg shadow-black/5">
-            {(['Product', 'Solutions', 'Venues', 'Pricing'] as const).map((tab) => {
-              const isActive = activeTab === tab;
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`relative px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                    isActive
-                      ? 'bg-white/25 text-white shadow-sm font-semibold'
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {isActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  )}
-                  {tab}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Action Button & Mobile Menu Trigger */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                if (inputRef.current) {
-                  inputRef.current.focus();
-                }
-              }}
-              className="group flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-white text-slate-900 text-xs sm:text-sm font-semibold shadow-lg shadow-white/10 hover:bg-white/95 transition-all duration-200 active:scale-95 cursor-pointer whitespace-nowrap"
-            >
-              <CornerDownRight className="w-3.5 h-3.5 text-slate-700 transition-transform group-hover:translate-x-0.5 group-hover:translate-y-0.5" />
-              <span>Try for free</span>
-            </button>
-
-            {/* Mobile Hamburger */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors cursor-pointer"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-          </div>
         </div>
-
-        {/* Mobile Dropdown Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden mt-3 p-3 rounded-2xl bg-slate-900/90 backdrop-blur-2xl border border-white/20 shadow-2xl space-y-1 animate-in fade-in slide-in-from-top-2">
-            {(['Product', 'Solutions', 'Venues', 'Pricing'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => {
-                  setActiveTab(tab);
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  activeTab === tab ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        )}
       </header>
 
-      {/* MAIN HERO SECTION */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-12 sm:py-16 max-w-5xl mx-auto w-full text-center">
+      {/* Main Hero Body */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 sm:px-6 md:px-8 pt-2 pb-16 max-w-4xl mx-auto w-full text-center">
         
         {/* Main Headline */}
-        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl tracking-tight text-white leading-[1.1] text-balance max-w-4xl drop-shadow-md">
-          The assistant that keeps your banquet moving.
+        <h1 
+          className="text-white text-3xl sm:text-5xl md:text-[56px] leading-[1.12] tracking-tight font-medium max-w-3xl mb-4 sm:mb-5 text-center text-balance drop-shadow-sm"
+          style={{ textWrap: 'balance' }}
+        >
+          The assistant that keeps your work moving.
         </h1>
 
         {/* Subtitle */}
-        <p className="mt-4 sm:mt-5 text-base sm:text-lg md:text-xl text-white/85 max-w-2xl font-normal leading-relaxed text-balance">
-          Let your AI assistant discover luxury ballrooms, customize catering menus, coordinate guest counts, and negotiate the best package.
+        <p className="text-white/85 text-sm sm:text-base md:text-lg max-w-2xl font-normal leading-relaxed mb-8 sm:mb-10 text-center text-balance">
+          Let your AI assistant manage the busywork, organize your day, and keep everything on track.
         </p>
 
-        {/* THE AI INPUT QUERY BOX */}
-        <div className="w-full mt-8 sm:mt-10 max-w-3xl text-left">
-          <div className="relative rounded-2xl sm:rounded-3xl glass-input p-3 sm:p-4 transition-all duration-300 group focus-within:border-white/45 focus-within:ring-2 focus-within:ring-white/20">
+        {/* AI INPUT BOX - White Light Theme (Pristine, Elegant, No AI-slop dark container) */}
+        <div className="w-full max-w-2xl text-left">
+          <div className="relative rounded-2xl sm:rounded-3xl bg-white/95 backdrop-blur-2xl border border-white p-3.5 sm:p-5 shadow-[0_24px_60px_-15px_rgba(20,18,50,0.35),0_0_0_1px_rgba(255,255,255,0.9)_inset] transition-all duration-300 focus-within:shadow-[0_28px_70px_-15px_rgba(20,18,50,0.45),0_0_0_2px_rgba(165,180,252,0.6)]">
+            
             {/* Prompt Textarea */}
-            <div className="relative">
-              <textarea
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleQuerySubmit();
-                  }
-                }}
-                placeholder="Describe your ideal banquet... e.g., 'Find a crystal ballroom for 350 guests with lawn for cocktail hour, vegetarian catering, and bridal suite under $20,000'"
-                rows={3}
-                className="w-full bg-transparent text-white placeholder-white/50 text-sm sm:text-base font-normal resize-none focus:outline-none px-2 py-1 leading-relaxed selection:bg-rose-500/40"
-              />
+            <div className="relative flex items-start gap-2.5 sm:gap-3">
+              <div className="pt-1.5 text-indigo-500 shrink-0">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500" />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <textarea
+                  ref={textareaRef}
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSearch();
+                    }
+                  }}
+                  placeholder="Ask anything... e.g. 'Find a luxury banquet hall for 250 wedding guests in November with ballroom, open lawn, and vegetarian catering under $15k'"
+                  rows={2}
+                  className="w-full bg-transparent text-slate-800 placeholder-slate-400 text-sm sm:text-base font-normal resize-none focus:outline-none p-0 leading-relaxed min-h-[64px] selection:bg-indigo-100"
+                />
+              </div>
+
+              {/* Clear button if text is entered */}
+              {prompt.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPrompt('')}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors"
+                  aria-label="Clear input"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Bottom Controls / Toolbar */}
-            <div className="flex items-center justify-end pt-2 px-1 gap-2">
-              <span className="hidden sm:inline text-[11px] text-white/40">
-                Press ↵ Enter
+            <div className="flex items-center justify-between pt-3 px-1 gap-2 border-t border-slate-100 mt-2">
+              <span className="text-xs text-slate-400 font-normal flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <span>AI Banquet Concierge</span>
               </span>
-              
+
+              <div className="flex items-center gap-2.5">
+                <span className="hidden sm:inline text-xs text-slate-400 font-normal">
+                  Press ↵ Enter
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => handleSearch()}
+                  disabled={isSearching}
+                  className="flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-normal text-xs sm:text-sm active:scale-95 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSearching ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Searching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Find Banquets</span>
+                      <ArrowUp className="w-3.5 h-3.5 rotate-45" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* AI Searching status feedback */}
+        {isSearching && (
+          <div className="mt-8 flex flex-col items-center gap-3 p-4 rounded-2xl bg-white/20 backdrop-blur-xl border border-white/30 text-white max-w-md w-full animate-fade-in">
+            <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+            <div className="text-sm font-normal tracking-wide text-center">
+              {searchStep}
+            </div>
+            <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-white h-full w-2/3 animate-pulse rounded-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Matched Venues Panel */}
+        {searchResults && !isSearching && (
+          <div id="ai-results-anchor" className="mt-12 w-full text-left scroll-mt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-white/20 gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-white/80 text-xs font-normal">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                  <span>Matched 3 Premier Banquets for your celebration</span>
+                </div>
+                <h2 className="text-white text-xl sm:text-2xl font-medium mt-1">
+                  AI Recommended Banquet Venues
+                </h2>
+              </div>
+
+              {/* Clean Filter Tabs */}
+              <div className="flex items-center gap-1 p-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 self-start sm:self-auto text-xs">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('all')}
+                  className={`px-3 py-1 rounded-md transition-colors font-normal ${
+                    activeTab === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  All Matches
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('verified')}
+                  className={`px-3 py-1 rounded-md transition-colors font-normal ${
+                    activeTab === 'verified' ? 'bg-white text-slate-900 shadow-sm' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Top Rated
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('instant-hold')}
+                  className={`px-3 py-1 rounded-md transition-colors font-normal ${
+                    activeTab === 'instant-hold' ? 'bg-white text-slate-900 shadow-sm' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Instant Hold
+                </button>
+              </div>
+            </div>
+
+            {/* Reserved notification banner if booked */}
+            {reservedVenueId && (
+              <div className="mt-4 p-4 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-300 shrink-0" />
+                  <span className="text-xs sm:text-sm font-normal">
+                    24-hour complimentary date hold initiated! Our banquet concierge is synchronizing the menu proposal with the venue director.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReservedVenueId(null)}
+                  className="text-emerald-200 hover:text-white text-xs ml-2"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Venues Grid */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+              {searchResults.map((venue) => {
+                const isSaved = savedVenues.includes(venue.id);
+                return (
+                  <div
+                    key={venue.id}
+                    className="group flex flex-col justify-between rounded-2xl bg-white/95 backdrop-blur-xl border border-white/80 p-5 shadow-xl hover:shadow-2xl transition-all duration-300"
+                  >
+                    <div>
+                      {/* Image Preview with match badge */}
+                      <div className="relative w-full h-44 rounded-xl overflow-hidden mb-4 bg-slate-200">
+                        <img
+                          src={venue.imageUrl}
+                          alt={venue.name}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-normal flex items-center gap-1">
+                          <Sparkle className="w-3 h-3 text-amber-300 fill-amber-300" />
+                          <span>{venue.matchScore}% Match</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleSaveVenue(venue.id)}
+                          className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-900 backdrop-blur-md flex items-center justify-center text-white transition-colors"
+                          aria-label="Save venue to favorites"
+                        >
+                          <Heart
+                            className={`w-4 h-4 ${
+                              isSaved ? 'text-rose-500 fill-rose-500' : 'text-white'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Header details */}
+                      <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                        <MapPin className="w-3 h-3 text-indigo-500" />
+                        <span className="truncate">{venue.location}</span>
+                      </div>
+
+                      <h3 className="text-slate-900 text-base sm:text-lg font-medium leading-snug mb-1">
+                        {venue.name}
+                      </h3>
+
+                      <p className="text-slate-600 text-xs font-normal line-clamp-2 mb-3">
+                        {venue.tagline}
+                      </p>
+
+                      {/* Capacity & Price stats */}
+                      <div className="pt-2 pb-3 border-y border-slate-100 text-xs space-y-1.5 text-slate-600">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Capacity</span>
+                          </span>
+                          <span className="font-normal text-slate-800">
+                            {venue.capacity}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Estimated Package</span>
+                          </span>
+                          <span className="font-normal text-slate-800">
+                            {venue.budget}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Catering highlight */}
+                      <div className="mt-3 p-2.5 rounded-lg bg-indigo-50/80 text-indigo-950 text-xs font-normal flex items-start gap-2">
+                        <Wine className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{venue.cateringHighlight}</span>
+                      </div>
+
+                      {/* Features */}
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {venue.features.map((feat, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-normal"
+                          >
+                            {feat}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Bottom CTA for each venue */}
+                    <div className="mt-5 pt-3 border-t border-slate-100 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleInstantHold(venue.id)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-normal text-center transition-colors shadow-sm"
+                      >
+                        {reservedVenueId === venue.id ? 'Holding Date...' : 'Hold Date with AI'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrompt(`Get full banquet proposal and floor plan breakdown for ${venue.name}`);
+                          window.scrollTo({ top: 180, behavior: 'smooth' });
+                        }}
+                        className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+                        title="Ask AI Concierge for floor plan and catering details"
+                      >
+                        <Sparkles className="w-4 h-4 text-indigo-500" />
+                      </button>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Follow-up search button */}
+            <div className="mt-8 flex justify-center">
               <button
                 type="button"
-                onClick={() => handleQuerySubmit()}
-                disabled={isSubmitting || !query.trim()}
-                className="flex items-center gap-2 px-4 py-2 sm:py-2.5 rounded-xl bg-white text-slate-900 font-semibold text-xs sm:text-sm hover:bg-white/95 active:scale-95 transition-all shadow-md shadow-white/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => {
+                  setSearchResults(null);
+                  setPrompt('');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/20 text-white text-xs font-normal transition-all"
               >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
-                    <span>Checking...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Ask AI</span>
-                    <Send className="w-3.5 h-3.5 text-slate-800" />
-                  </>
-                )}
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Start New Banquet Inquiry</span>
               </button>
             </div>
           </div>
-        </div>
+        )}
+
       </main>
 
-      {/* Spacer to keep balanced vertical centering */}
-      <div className="h-10 sm:h-14" />
-    </div>
+      {/* Subtle footer */}
+      <footer className="relative z-10 w-full px-6 py-4 text-center text-xs text-white/50 font-normal">
+        <span>© {new Date().getFullYear()} Avela Banquet AI · Tailored Event & Banquet Concierge</span>
+      </footer>
+    </section>
   );
 }
